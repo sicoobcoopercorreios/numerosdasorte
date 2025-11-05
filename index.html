@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Consulta de Números da Sorte | Sicoob Coopercorreios</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- SheetJS para ler Excel no navegador -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <style>
     :root {
       --coopercorreios-green: #00856a;
@@ -45,9 +47,7 @@
       from {opacity: 0; transform: translateY(-10px);}
       to {opacity: 1; transform: translateY(0);}
     }
-    .animate-fade-in {
-      animation: fadeIn 0.5s ease forwards;
-    }
+    .animate-fade-in { animation: fadeIn 0.5s ease forwards; }
   </style>
 </head>
 
@@ -72,7 +72,8 @@
         class="w-full md:flex-1 p-3 rounded-lg bg-white/10 text-white focus:ring-2 focus:ring-[var(--coopercorreios-lightgreen)] outline-none transition">
       <button id="checkBtn" class="btn px-6 py-3">Consultar</button>
     </div>
-    <p id="message" class="mt-4 text-sm text-yellow-300"></p>
+    <p id="hint" class="mt-3 text-xs text-gray-400">Dica: você pode digitar com ou sem máscara (000.000.000-00).</p>
+    <p id="message" class="mt-3 text-sm text-yellow-300"></p>
 
     <div id="results" class="mt-6"></div>
   </main>
@@ -82,44 +83,97 @@
   </footer>
 
   <script>
-    // ===== Dados fixos =====
-    const DATA = [
-      { cpf: '07918785622', name: 'ILDIBERTO FELIPE', numeros: ['123345','123458','145789','014786'] },
-      { cpf: '07918785623', name: 'LUCAS PELINSARI', numeros: ['789456','123654','321789','147852'] },
-      { cpf: '07918785624', name: 'MARCUS VINICIUS', numeros: ['333222','444555','666777'] },
-      { cpf: '70044875630', name: 'TESTE TI', numeros: ['000000','111111','222222'] },
-      { cpf: '07918785625', name: 'ISABELA', numeros: ['101010','202020','303030'] },
-      { cpf: '07918785626', name: 'REGINALDO', numeros: ['999888','777666','555444'] }
-    ];
+    // ========= CONFIG =========
+    // Coloque o arquivo "atual.xlsx" na MESMA pasta deste HTML.
+    // Se preferir outra pasta, ajuste o caminho abaixo.
+    const EXCEL_URL = 'atual.xlsx';
 
-    // ===== Funções utilitárias =====
+    // ========= ESTADO =========
+    let DATA = [];
+    let dataLoaded = false;
+
+    // ========= UTIL =========
     function normalizeCpf(cpf) {
-      return cpf.replace(/\D/g, '').padStart(11, '0');
+      return String(cpf || '').replace(/\D/g, '').padStart(11, '0');
     }
 
     function formatCpf(cpf) {
-      cpf = cpf.replace(/\D/g, '');
+      cpf = String(cpf || '').replace(/\D/g, '');
       cpf = cpf.replace(/(\d{3})(\d)/, '$1.$2');
       cpf = cpf.replace(/(\d{3})(\d)/, '$1.$2');
       cpf = cpf.replace(/(\d{3})(\d{1,2})$/, '$1-$2');
       return cpf;
     }
 
-    // ===== Máscara automática no campo CPF =====
+    function parseNumeros(raw) {
+      return String(raw || '')
+        .split(',')
+        .map(s => s.replace(/\D/g, '')) // mantém apenas dígitos (preserva zeros à esquerda porque trabalhamos como string)
+        .filter(Boolean);
+    }
+
+    // ========= MÁSCARA CPF =========
     const cpfInput = document.getElementById('cpfInput');
     cpfInput.addEventListener('input', (e) => {
-      e.target.value = formatCpf(e.target.value);
+      // mantém a digitação amigável com máscara
+      const only = e.target.value.replace(/\D/g, '').slice(0,11);
+      let m = only;
+      if (m.length > 3) m = m.replace(/(\d{3})(\d)/, '$1.$2');
+      if (m.length > 7) m = m.replace(/(\d{3})\.(\d{3})(\d)/, '$1.$2.$3');
+      if (m.length > 11) m = m.replace(/(\d{3})\.(\d{3})\.(\d{3})(\d{1,2})$/, '$1.$2.$3-$4');
+      e.target.value = m;
     });
 
-    // ===== Lógica de consulta =====
+    // ========= CARREGAR EXCEL (SheetJS) =========
+    async function loadDATAFromExcel() {
+      const message = document.getElementById('message');
+      message.textContent = 'Carregando base de números...';
+      try {
+        // evita cache antigo
+        const res = await fetch(EXCEL_URL + '?t=' + Date.now(), { cache: 'no-store' });
+        if (!res.ok) throw new Error('Não foi possível carregar a planilha.');
+
+        const buf = await res.arrayBuffer();
+        const wb = XLSX.read(buf, { type: 'array' });
+
+        // tenta usar a aba "Numeros Atribuidos"; se não existir, usa a primeira
+        const preferida = 'Numeros Atribuidos';
+        const sheetName = wb.SheetNames.includes(preferida) ? preferida : wb.SheetNames[0];
+        const ws = wb.Sheets[sheetName];
+
+        const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+
+        DATA = rows.map(r => {
+          const nome = String(r['Nome'] || '').trim();
+          const cpf = normalizeCpf(r['CPF']);
+          const numeros = parseNumeros(r['Números da Sorte']);
+          return { cpf, name: nome, numeros };
+        });
+
+        dataLoaded = true;
+        message.textContent = 'Base carregada com sucesso. Faça a consulta pelo CPF.';
+      } catch (err) {
+        console.error(err);
+        dataLoaded = false;
+        const msg = 'Falha ao carregar a base de números. Verifique se o arquivo "atual.xlsx" está na mesma pasta do HTML.';
+        document.getElementById('message').textContent = msg;
+      }
+    }
+
+    // ========= LÓGICA DE CONSULTA =========
     const checkBtn = document.getElementById('checkBtn');
     const message = document.getElementById('message');
     const results = document.getElementById('results');
 
-    checkBtn.addEventListener('click', () => {
+    function consultar() {
       const cpf = normalizeCpf(cpfInput.value);
       results.innerHTML = '';
       message.textContent = '';
+
+      if (!dataLoaded) {
+        message.textContent = 'Aguarde: a base ainda está carregando...';
+        return;
+      }
 
       if (cpf.length !== 11) {
         message.textContent = 'Por favor, insira um CPF válido.';
@@ -136,13 +190,24 @@
       container.className = 'mt-6 p-6 bg-white/5 rounded-lg border border-white/10 animate-fade-in';
       container.innerHTML = `
         <h2 class="text-xl font-semibold mb-2 text-[var(--coopercorreios-lightgreen)]">${user.name}</h2>
-        <p class="text-sm text-gray-300 mb-3">CPF: ${formatCpf(user.cpf)}</p>
+        <p class="text-sm text-gray-300 mb-3">
+          CPF: ${formatCpf(user.cpf)} • Quantidade: ${user.numeros.length}
+        </p>
         <div class="flex flex-wrap gap-3 justify-center">
           ${user.numeros.map(num => `<span class="pill">${num}</span>`).join('')}
         </div>
       `;
       results.appendChild(container);
+    }
+
+    checkBtn.addEventListener('click', consultar);
+    // Enter no campo CPF também consulta
+    cpfInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') consultar();
     });
+
+    // Carrega a base ao abrir a página
+    window.addEventListener('DOMContentLoaded', loadDATAFromExcel);
   </script>
 </body>
 </html>
