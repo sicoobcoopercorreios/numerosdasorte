@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Consulta de Números da Sorte | Sicoob Coopercorreios</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root {
+      --coopercorreios-green: #00856a;
+      --coopercorreios-lightgreen: #8cc63f;
+      --coopercorreios-dark: #004b3f;
+    }
+    body {
+      background: linear-gradient(160deg, var(--coopercorreios-dark), #0a1e1a);
+      color: #fff;
+      font-family: 'Inter', sans-serif;
+    }
+    .card {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 1rem;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+    }
+    .btn {
+      background-color: var(--coopercorreios-green);
+      color: white;
+      font-weight: 600;
+      border-radius: 0.75rem;
+      transition: all .2s;
+    }
+    .btn:hover {
+      background-color: var(--coopercorreios-lightgreen);
+      transform: scale(1.02);
+    }
+    .pill {
+      background: var(--coopercorreios-green);
+      border-radius: 12px;
+      padding: .6rem 1rem;
+      font-weight: 700;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+    }
+    @keyframes fadeIn {
+      from {opacity: 0; transform: translateY(-10px);}
+      to {opacity: 1; transform: translateY(0);}
+    }
+    .animate-fade-in {
+      animation: fadeIn 0.5s ease forwards;
+    }
+  </style>
+</head>
+
+<body class="min-h-screen flex flex-col items-center justify-start p-6">
+  <!-- HEADER -->
+  <header class="w-full max-w-4xl text-center mt-6 mb-10">
+    <div class="flex justify-center mb-6">
+      <div class="rounded-xl bg-white/10 p-3 shadow-xl backdrop-blur-sm">
+        <img src="logo-coopercorreios.png" alt="Logo Sicoob Coopercorreios"
+             class="h-24 md:h-28 object-contain mx-auto rounded-lg" />
+      </div>
+    </div>
+    <h1 class="text-3xl font-bold text-white mb-1 tracking-wide">Consulta de Números da Sorte</h1>
+    <p class="text-sm text-gray-300">Digite o CPF do cooperado para visualizar seus números da sorte</p>
+  </header>
+
+  <!-- CONTEÚDO -->
+  <main class="w-full max-w-3xl card p-8">
+    <div class="flex flex-col md:flex-row gap-4 items-center">
+      <input id="cpfInput" type="text" placeholder="Digite o CPF"
+        maxlength="14"
+        class="w-full md:flex-1 p-3 rounded-lg bg-white/10 text-white focus:ring-2 focus:ring-[var(--coopercorreios-lightgreen)] outline-none transition">
+      <button id="checkBtn" class="btn px-6 py-3">Consultar</button>
+    </div>
+    <p id="message" class="mt-4 text-sm text-yellow-300"></p>
+
+    <div id="results" class="mt-6"></div>
+  </main>
+
+  <footer class="text-center text-xs text-gray-400 mt-10 mb-4">
+    © 2025 Sicoob Coopercorreios — Todos os direitos reservados.
+  </footer>
+
+  <script>
+    // ===== Dados fixos =====
+    const DATA = [
+      { cpf: '07918785622', name: 'ILDIBERTO FELIPE', numeros: ['123345','123458','145789','014786'] },
+      { cpf: '07918785623', name: 'LUCAS PELINSARI', numeros: ['789456','123654','321789','147852'] },
+      { cpf: '07918785624', name: 'MARCUS VINICIUS', numeros: ['333222','444555','666777'] },
+      { cpf: '70044875630', name: 'TESTE TI', numeros: ['000000','111111','222222'] },
+      { cpf: '07918785625', name: 'ISABELA', numeros: ['101010','202020','303030'] },
+      { cpf: '07918785626', name: 'REGINALDO', numeros: ['999888','777666','555444'] }
+    ];
+
+    // ===== Funções utilitárias =====
+    function normalizeCpf(cpf) {
+      return cpf.replace(/\D/g, '').padStart(11, '0');
+    }
+
+    function formatCpf(cpf) {
+      cpf = cpf.replace(/\D/g, '');
+      cpf = cpf.replace(/(\d{3})(\d)/, '$1.$2');
+      cpf = cpf.replace(/(\d{3})(\d)/, '$1.$2');
+      cpf = cpf.replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+      return cpf;
+    }
+
+    // ===== Máscara automática no campo CPF =====
+    const cpfInput = document.getElementById('cpfInput');
+    cpfInput.addEventListener('input', (e) => {
+      e.target.value = formatCpf(e.target.value);
+    });
+
+    // ===== Lógica de consulta =====
+    const checkBtn = document.getElementById('checkBtn');
+    const message = document.getElementById('message');
+    const results = document.getElementById('results');
+
+    checkBtn.addEventListener('click', () => {
+      const cpf = normalizeCpf(cpfInput.value);
+      results.innerHTML = '';
+      message.textContent = '';
+
+      if (cpf.length !== 11) {
+        message.textContent = 'Por favor, insira um CPF válido.';
+        return;
+      }
+
+      const user = DATA.find(item => item.cpf === cpf);
+      if (!user) {
+        message.textContent = 'CPF não encontrado.';
+        return;
+      }
+
+      const container = document.createElement('div');
+      container.className = 'mt-6 p-6 bg-white/5 rounded-lg border border-white/10 animate-fade-in';
+      container.innerHTML = `
+        <h2 class="text-xl font-semibold mb-2 text-[var(--coopercorreios-lightgreen)]">${user.name}</h2>
+        <p class="text-sm text-gray-300 mb-3">CPF: ${formatCpf(user.cpf)}</p>
+        <div class="flex flex-wrap gap-3 justify-center">
+          ${user.numeros.map(num => `<span class="pill">${num}</span>`).join('')}
+        </div>
+      `;
+      results.appendChild(container);
+    });
+  </script>
+</body>
+</html>
